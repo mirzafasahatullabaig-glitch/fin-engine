@@ -31,7 +31,8 @@ arithmetic; a local Ollama model is a language/orchestration layer only. It is a
 
 - **No double-entry posting layer** — `Ledger` was pre-classified magnitudes with no balance check. → **built: `journal.py`.**
 - **No balance sheet or liquidity ratios** — only P&L margins existed. → **built: `balance_sheet.py`.**
-- No persistence: everything is in-memory; `ledger_provider` is a stub. See KNOWN_LIMITATIONS.
+- **v1.5.0 update:** the two-source-of-truth gap below is now resolved — P&L and balance sheet derive from the journal via the Chart of Accounts (`accounts.py`, `ledger_gl.py`, `statements.py`); the router dispatches per-metric (`router.py`); periods are typed (`periods.py`); reconciliation checks invariants (`reconciliation.py`). See docs/UNIFIED_ACCOUNTING_ARCHITECTURE.md and docs/V1_5_IMPLEMENTATION_REPORT.md.
+- No persistence: everything is in-memory; `ledger_provider`/`accounting_provider` are caller-supplied. See KNOWN_LIMITATIONS.
 - No auth / RBAC / audit trail — single-user tool, deliberately deferred. See KNOWN_LIMITATIONS.
 - RAG citation verification is answer-level (abstention threshold), not per-claim.
 

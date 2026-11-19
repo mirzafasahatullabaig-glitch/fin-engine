@@ -25,6 +25,7 @@ from .ledger_gl import (
 )
 from .statements import balance_sheet_from_journal, pnl_from_journal
 from .periods import PeriodRange, parse_date, resolve_period, date_in_period
+from .reconciliation import reconcile, ReconciliationReport
 
 __all__ = [
     "calculate_pnl",
@@ -63,4 +64,6 @@ __all__ = [
     "parse_date",
     "resolve_period",
     "date_in_period",
+    "reconcile",
+    "ReconciliationReport",
 ]
