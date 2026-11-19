@@ -6,7 +6,13 @@ Shows that the engine returns the corrected PBT values (115,000 / 190,000)
 that the local model got wrong in report §7.1.
 """
 
+import sys
 from decimal import Decimal
+from pathlib import Path
+
+# Allow `python demo.py` to run without installing the package or setting
+# PYTHONPATH: put src/ on the path when the package isn't already importable.
+sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
 
 from fin_engine import calculate_pnl, classify_transaction
 from fin_engine.models import AccountGroup, Ledger, LedgerLine

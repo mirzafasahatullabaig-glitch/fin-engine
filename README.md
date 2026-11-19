@@ -33,9 +33,9 @@ are locked in as regression tests.
 # optional: create a venv
 py -3.11 -m venv .venv ; .\.venv\Scripts\Activate.ps1
 
-pip install -e ".[dev]"
-python demo.py          # worked examples from the report
-pytest                  # golden tests (includes the §7.3 PBT regressions)
+pip install -e ".[dev]"   # optional; demo.py and pytest work without it
+python demo.py            # worked examples from the report
+pytest                    # golden tests (includes the §7.3 PBT regressions)
 ```
 
 No third-party runtime dependencies — the engine is stdlib-only
