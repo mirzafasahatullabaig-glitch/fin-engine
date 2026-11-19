@@ -21,7 +21,10 @@ def _ledger():
 
 
 def _kb():
-    kb = KnowledgeBaseA(embedder=HashEmbedder(),
+    # The fake HashEmbedder's cosine scores are not on the same scale as the
+    # production nomic-embed-text default (0.5); pin a low threshold so these
+    # tests exercise routing, not embedding-score tuning.
+    kb = KnowledgeBaseA(embedder=HashEmbedder(), min_score=0.05,
                         generator=lambda p: "Reference explanation [Source 1].")
     kb.ingest_text("Working capital is current assets minus current liabilities.",
                    source="glossary.md")

@@ -58,7 +58,12 @@ def _clean_answer(text: str) -> str:
 
 # Below this cosine score, retrieved context is treated as irrelevant and the
 # pipeline abstains rather than answering (report §4.4 / §8.4).
-DEFAULT_MIN_SCORE = 0.3
+#
+# Tuned against nomic-embed-text: off-topic queries floor around 0.40-0.43
+# (every text has some similarity), while genuine hits land at 0.70+. 0.5 sits
+# in the gap — above the noise floor, below real matches. Retune if the
+# embedding model changes.
+DEFAULT_MIN_SCORE = 0.5
 
 
 @dataclass(frozen=True)
