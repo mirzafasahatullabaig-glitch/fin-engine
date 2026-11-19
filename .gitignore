@@ -1,0 +1,13 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.venv/
+venv/
+build/
+dist/
+# Local business data is confidential (report §3.2) — never commit it.
+data/*.csv
+data/*.xlsx
+data/*.json
+!data/.gitkeep
