@@ -12,11 +12,26 @@ It asserts on real outcomes and prints a PASS/FAIL summary with an exit code,
 so it can gate a release. Requires Ollama running with both models pulled.
 """
 
+import os
 import sys
 from decimal import Decimal
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
+
+
+def _exit(status: int) -> None:
+    """Exit with a deterministic status.
+
+    On Windows + Python 3.14 the normal interpreter shutdown occasionally
+    crashes (exit 255) while tearing down GC'd objects / lingering HTTP
+    connections, even when the test logic succeeded. Flushing the streams and
+    using os._exit bypasses that finalizer phase so the exit code always
+    reflects the test result, not a teardown race.
+    """
+    sys.stdout.flush()
+    sys.stderr.flush()
+    os._exit(status)
 
 from fin_engine import QueryRouter, Intent, calculate_pnl, classify_transaction
 from fin_engine.models import AccountGroup, Ledger, LedgerLine
@@ -51,7 +66,7 @@ def require_ollama() -> None:
         urllib.request.urlopen("http://localhost:11434/api/tags", timeout=5)
     except Exception as exc:  # noqa: BLE001
         print(f"Ollama not reachable: {exc}\nStart it and pull the models first.")
-        sys.exit(2)
+        _exit(2)
 
 
 def acme_ledger() -> Ledger:
@@ -141,7 +156,7 @@ def main() -> None:
               "run ingest_reading_list.py first")
 
     print(f"\n==== RESULT: {_passed} passed, {_failed} failed ====")
-    sys.exit(1 if _failed else 0)
+    _exit(1 if _failed else 0)
 
 
 if __name__ == "__main__":
