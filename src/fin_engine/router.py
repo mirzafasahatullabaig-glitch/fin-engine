@@ -33,6 +33,10 @@ class Intent(str, Enum):
 
 # Words that signal the question is about THIS organisation's own figures.
 _POSSESSIVE = ("our ", "my ", "we ", "us ", "the company's", "this business")
+# Possessive phrases that actually point OUTWARD at general/reference topics,
+# not the org's own ledger ("our industry's average margin" is a general Q).
+_GENERAL_POSSESSIVE = ("our industry", "our sector", "our market",
+                       "our competitors", "my industry", "my sector")
 # Words that signal a qualitative judgement needing both figure + reference.
 _JUDGEMENT = ("healthy", "good", "bad", "normal", "reasonable", "should we",
               "too high", "too low", "concern", "worrying")
@@ -43,15 +47,25 @@ _METRIC = ("pbt", "profit before tax", "ebit", "operating profit", "gross profit
 
 
 def classify_intent(question: str) -> Intent:
-    """Decide where a question should be routed (deterministic)."""
+    """Decide where a question should be routed (deterministic).
+
+    BUSINESS (our own figures) requires BOTH a possessive AND a concrete metric,
+    so a general question that merely contains "our" (e.g. "our industry's
+    average margin") is not misrouted to the private-data path. Outward-pointing
+    possessives ("our industry/sector/market") are treated as general outright.
+    """
     q = f" {question.lower().strip()} "
-    about_us = any(p in q for p in _POSSESSIVE)
+    outward = any(p in q for p in _GENERAL_POSSESSIVE)
+    about_us = (not outward) and any(p in q for p in _POSSESSIVE)
     judgemental = any(j in q for j in _JUDGEMENT)
     mentions_metric = any(m in q for m in _METRIC)
 
-    if judgemental and (about_us or mentions_metric):
+    # Only our-own-figures questions (possessive + a metric) touch the ledger.
+    business = about_us and mentions_metric
+
+    if judgemental and business:
         return Intent.COMBINED
-    if about_us:
+    if business:
         return Intent.BUSINESS
     return Intent.GENERAL
 

@@ -37,8 +37,11 @@ def _kb():
     ("What is our PBT?", Intent.BUSINESS),
     ("What is our revenue this month?", Intent.BUSINESS),
     ("Is our working capital healthy?", Intent.COMBINED),
-    ("Is gross profit margin too low?", Intent.COMBINED),
     ("Define EBIT", Intent.GENERAL),
+    # Audit finding #4: a general question that merely contains "our" must NOT
+    # be routed to the private-data path.
+    ("What is our industry's average margin?", Intent.GENERAL),
+    ("How do typical firms compute gross profit?", Intent.GENERAL),
 ])
 def test_classify_intent(q, expected):
     assert classify_intent(q) is expected

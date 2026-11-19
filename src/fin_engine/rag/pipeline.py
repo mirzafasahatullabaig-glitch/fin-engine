@@ -82,6 +82,31 @@ class Answer:
         return seen
 
 
+# Ingested documents are UNTRUSTED (report §9.2). Neutralise common
+# prompt-injection phrasing so a poisoned source cannot hijack the model. This
+# is defence-in-depth alongside the grounding prompt, not a complete guarantee.
+_INJECTION_PATTERNS = [
+    re.compile(r"ignore\s+(all\s+)?(previous|prior|above)\s+instructions?", re.I),
+    re.compile(r"disregard\s+(all\s+)?(previous|prior|above)\b.*", re.I),
+    re.compile(r"\byou\s+are\s+now\b.*", re.I),
+    re.compile(r"\bsystem\s+prompt\b", re.I),
+    re.compile(r"do\s+not\s+cite\s+(any\s+)?sources?", re.I),
+    re.compile(r"reply\s+(only\s+)?(with|exactly)\b.*", re.I),
+    re.compile(r"\bsend\s+(all\s+)?.*\bto\b\s+\S+@\S+", re.I),
+]
+
+
+def sanitize_ingest(text: str) -> str:
+    """Strip imperative prompt-injection phrases from untrusted document text.
+
+    Replaces matched spans with a visible ``[removed: possible injection]``
+    marker so the content is not silently altered and the redaction is auditable.
+    """
+    for pat in _INJECTION_PATTERNS:
+        text = pat.sub("[removed: possible injection]", text)
+    return text
+
+
 def _build_prompt(question: str, sources: list[Retrieved]) -> str:
     context = "\n\n".join(
         f"[Source {i + 1}: {r.chunk.source}]\n{r.chunk.text}"
@@ -133,7 +158,11 @@ class KnowledgeBaseA:
         self, text: str, *, source: str, metadata: dict | None = None,
         max_chars: int = 1000, overlap_chars: int = 150,
     ) -> int:
-        """Chunk, embed and store a document. Returns the number of chunks."""
+        """Chunk, embed and store a document. Returns the number of chunks.
+
+        Ingested text is sanitised for prompt-injection phrasing first (§9.2).
+        """
+        text = sanitize_ingest(text)
         pieces = chunk_text(text, max_chars=max_chars, overlap_chars=overlap_chars)
         if not pieces:
             return 0
