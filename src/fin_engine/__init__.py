@@ -21,6 +21,7 @@ from .accounts import (
 from .ledger_gl import (
     account_activity, account_balance, trial_balance, TrialBalance,
 )
+from .statements import balance_sheet_from_journal, pnl_from_journal
 
 __all__ = [
     "calculate_pnl",
@@ -51,4 +52,6 @@ __all__ = [
     "account_balance",
     "trial_balance",
     "TrialBalance",
+    "balance_sheet_from_journal",
+    "pnl_from_journal",
 ]
