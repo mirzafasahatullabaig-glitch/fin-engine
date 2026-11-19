@@ -6,8 +6,11 @@ __pycache__/
 venv/
 build/
 dist/
-# Local business data is confidential (report §3.2) — never commit it.
+# Private business records (KB-B) are confidential (report §3.2) — never commit.
 data/*.csv
 data/*.xlsx
 data/*.json
 !data/.gitkeep
+# Persisted vector indexes are rebuildable artifacts, not source.
+*.index.json
+# KB-A sample reference docs (data/kb_a_sample/) are non-confidential and kept.

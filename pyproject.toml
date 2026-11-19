@@ -7,7 +7,8 @@ name = "fin-engine"
 version = "1.0.0"
 description = "Deterministic financial calculation and verification engine for the local AI business/finance system."
 requires-python = ">=3.11"
-dependencies = []  # intentionally stdlib-only: Decimal, dataclasses, enum
+# The finance engine is stdlib-only. NumPy is used only by the RAG vector store.
+dependencies = ["numpy>=1.24"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8"]
