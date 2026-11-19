@@ -61,10 +61,19 @@ def pnl_from_journal(journal: Journal, chart: ChartOfAccounts, period: str,
                      end: Optional[str] = None) -> PnL:
     """Build a P&L for a period from journal balances (prompt 5.1).
 
-    ``start``/``end`` bound the period (inclusive ISO dates); if omitted the
-    whole journal is used. ``period`` is the label carried onto the result.
-    Reuses ``calculate_pnl`` so the PBT formula is identical to v1.4.0.
+    ``start``/``end`` bound the period (inclusive ISO dates). If omitted, they
+    are resolved from the ``period`` label (``2026-11`` -> that month's range)
+    when it is a recognised label; an unrecognised label falls back to the whole
+    journal. ``period`` is the label carried onto the result. Reuses
+    ``calculate_pnl`` so the PBT formula is identical to v1.4.0.
     """
+    if start is None and end is None:
+        try:
+            from .periods import resolve_period
+            pr = resolve_period(period)
+            start, end = pr.start_iso(), pr.end_iso()
+        except ValueError:
+            pass  # opaque label (not YYYY-MM/Qn/YYYY): use the whole journal
     lines: list[LedgerLine] = []
     for acct in chart.accounts():
         group = _PNL_CATEGORY_TO_GROUP.get(acct.statement_category)
