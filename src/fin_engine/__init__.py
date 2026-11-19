@@ -12,7 +12,7 @@ from .cashflow import calculate_cash_flow, CashFlow
 from .classify import classify_transaction, Classification
 from .models import Ledger, LedgerLine, FORMULA_VERSION
 from .router import QueryRouter, RouteResult, Intent, classify_intent
-from .journal import Journal, JournalEntry, Posting
+from .journal import Journal, JournalEntry, Posting, EntryStatus
 from .balance_sheet import BalanceSheet
 from .accounts import (
     Account, AccountType, ChartOfAccounts, NormalBalance, StatementCategory,
@@ -36,6 +36,7 @@ __all__ = [
     "Journal",
     "JournalEntry",
     "Posting",
+    "EntryStatus",
     "BalanceSheet",
     "Account",
     "AccountType",
