@@ -1,28 +1,55 @@
 """Text chunking (report §3.1: "chunk by heading/section").
 
-A deliberately simple, deterministic chunker: split on blank lines into
-paragraphs, then pack paragraphs into chunks up to a target character budget
-with a small overlap so a sentence spanning a boundary is still retrievable.
-No tokenizer dependency — character budget is a good-enough proxy locally.
+A deliberately simple, deterministic chunker. For markdown it splits on headings
+first so each ``#``/``##``/``###`` section becomes its own chunk (sections
+retrieve far more precisely than one blob), then packs paragraphs within a
+section up to a character budget with a small overlap. No tokenizer dependency
+— character budget is a good-enough proxy locally.
 """
 
 from __future__ import annotations
+
+import re
+
+_HEADING = re.compile(r"^#{1,6}[ \t]+\S", re.MULTILINE)
+
+
+def _split_markdown_sections(text: str) -> list[str]:
+    """Split markdown into sections, each starting at a heading line.
+
+    Text before the first heading (if any) is its own leading section. A
+    document with no headings returns a single section (the whole text).
+    """
+    starts = [m.start() for m in _HEADING.finditer(text)]
+    if not starts:
+        return [text]
+    bounds = ([0] if starts[0] != 0 else []) + starts + [len(text)]
+    bounds = sorted(set(bounds))
+    sections = [text[bounds[i] : bounds[i + 1]] for i in range(len(bounds) - 1)]
+    return [s for s in sections if s.strip()]
 
 
 def chunk_text(
     text: str, *, max_chars: int = 1000, overlap_chars: int = 150
 ) -> list[str]:
-    """Split ``text`` into overlapping chunks of roughly ``max_chars``.
+    """Split ``text`` into chunks, heading-aware for markdown.
 
-    Paragraphs (blank-line separated) are kept whole where possible. A single
-    paragraph longer than ``max_chars`` is hard-split. Overlap is applied
-    between consecutive chunks to preserve context across boundaries.
+    Each markdown section is chunked independently so sections never bleed into
+    one another. Within a section, paragraphs are packed up to ``max_chars``
+    with overlap; a single paragraph longer than ``max_chars`` is hard-split.
     """
     if max_chars <= 0:
         raise ValueError("max_chars must be positive")
     if overlap_chars < 0 or overlap_chars >= max_chars:
         raise ValueError("overlap_chars must be in [0, max_chars)")
 
+    chunks: list[str] = []
+    for section in _split_markdown_sections(text):
+        chunks.extend(_chunk_section(section, max_chars, overlap_chars))
+    return chunks
+
+
+def _chunk_section(text: str, max_chars: int, overlap_chars: int) -> list[str]:
     paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
     chunks: list[str] = []
     current = ""

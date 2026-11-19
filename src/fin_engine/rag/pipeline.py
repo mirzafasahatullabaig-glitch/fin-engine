@@ -9,6 +9,7 @@ all — useful for evaluating retrieval quality on its own.
 from __future__ import annotations
 
 import json
+import re
 import urllib.error
 import urllib.request
 from dataclasses import dataclass, field
@@ -21,6 +22,39 @@ from .store import Chunk, Retrieved, VectorStore
 
 # A generator takes a fully-formed prompt and returns the model's text.
 Generator = Callable[[str], str]
+
+# Small models sometimes echo the literal citation template from the prompt
+# ("[Source N]") or leave an empty "[Source ]" marker. Strip those artifacts
+# deterministically rather than hoping prompt-tuning suppresses them.
+_CITATION_ARTIFACT = re.compile(r"\[\s*Source\s*(?:N|n|\d*)\s*\]")
+
+
+# Reasoning models (Granite 4.2 included) sometimes emit a <think>...</think>
+# block, or a stray closing </think>, even with think=False. Strip it.
+_THINK_BLOCK = re.compile(r"<think>.*?</think>", re.DOTALL | re.IGNORECASE)
+_STRAY_THINK = re.compile(r"</?think>", re.IGNORECASE)
+
+
+def _clean_answer(text: str) -> str:
+    """Remove think-tags and placeholder citation markers; keep real citations.
+
+    Drops ``<think>…</think>`` reasoning blocks, ``[Source N]`` (literal
+    template) and ``[Source ]`` (empty); leaves numbered citations intact.
+    """
+    def keep_numbered(m: re.Match) -> str:
+        inner = m.group(0)
+        return inner if re.search(r"\d", inner) else ""
+
+    cleaned = _THINK_BLOCK.sub("", text)
+    cleaned = _STRAY_THINK.sub("", cleaned)
+    cleaned = _CITATION_ARTIFACT.sub(keep_numbered, cleaned)
+    # Tidy artifacts left behind by the removal.
+    cleaned = re.sub(r"\(\s*\)", "", cleaned)               # empty parens "()"
+    cleaned = re.sub(r"[ \t]{2,}", " ", cleaned)            # runs of spaces
+    cleaned = re.sub(r" +([.,;:])", r"\1", cleaned)         # space before punct
+    # Collapse orphaned sentence punctuation, e.g. "[1]. ." -> "[1]."
+    cleaned = re.sub(r"([.,;:])(\s*[.,;:])+", r"\1", cleaned)
+    return cleaned.strip()
 
 # Below this cosine score, retrieved context is treated as irrelevant and the
 # pipeline abstains rather than answering (report §4.4 / §8.4).
@@ -133,5 +167,5 @@ class KnowledgeBaseA:
                 grounded=False,
             )
         gen = self.generator or _ollama_generate
-        text = gen(_build_prompt(question, relevant))
+        text = _clean_answer(gen(_build_prompt(question, relevant)))
         return Answer(text=text, sources=relevant, grounded=True)

@@ -44,13 +44,31 @@ NumPy vector store (no Qdrant/Postgres), `nomic-embed-text` embeddings and
 
 The LLM only *explains* retrieved passages — it is never the source of truth,
 and it is swapped out for a fake generator in tests so the suite runs offline.
+Markdown is chunked by heading (each `##` section is its own chunk), and model
+answers are cleaned of `<think>…</think>` blocks and placeholder `[Source N]`
+citation artifacts deterministically.
 
-**To run the RAG demo you need Ollama:**
+### A/B query router (`fin_engine.router`)
+
+One entry point that classifies a question's intent (report §4.3) and routes it:
+
+| Question | Intent | Handled by |
+|---|---|---|
+| "Explain working capital" | `general` | Knowledge Base A (RAG) |
+| "What is our PBT?" | `business` | the finance engine — **exact figures, never the LLM** |
+| "Is our working capital healthy?" | `combined` | both: verified figures + reference context |
+
+`QueryRouter` takes a `ledger_provider` callable so access control / period
+selection happen at call time; if no records are available it reports the gap
+instead of inventing figures.
+
+**To run the demos you need Ollama:**
 
 ```powershell
 ollama pull nomic-embed-text
 ollama pull granite4.2:8b
-python rag_demo.py
+python rag_demo.py      # Knowledge Base A retrieval + answers
+python router_demo.py   # A/B routing across engine + RAG
 ```
 
 ## Run
@@ -78,6 +96,7 @@ dev-only. The RAG tests use a deterministic fake embedder, so `pytest` needs
 ## Status
 
 Finance engine + golden tests complete (v1.0.x). Knowledge Base A general-docs
-RAG complete with offline tests (v1.1.0). Not yet built: KB-B RAG over private
-records, the A/B query router with permission checks, a database, and the UI —
-those remain proposed work per the report roadmap.
+RAG (v1.1.0) and the A/B query router (v1.2.0) complete, with offline tests.
+Not yet built: KB-B RAG over private records (the `ledger_provider` is a stub),
+role-based permission enforcement, a database, and the UI — those remain
+proposed work per the report roadmap.

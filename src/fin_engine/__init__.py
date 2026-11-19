@@ -11,6 +11,7 @@ from .pnl import calculate_pnl, PnL
 from .cashflow import calculate_cash_flow, CashFlow
 from .classify import classify_transaction, Classification
 from .models import Ledger, LedgerLine, FORMULA_VERSION
+from .router import QueryRouter, RouteResult, Intent, classify_intent
 
 __all__ = [
     "calculate_pnl",
@@ -22,4 +23,8 @@ __all__ = [
     "Ledger",
     "LedgerLine",
     "FORMULA_VERSION",
+    "QueryRouter",
+    "RouteResult",
+    "Intent",
+    "classify_intent",
 ]

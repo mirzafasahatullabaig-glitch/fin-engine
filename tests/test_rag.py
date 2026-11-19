@@ -50,6 +50,41 @@ def test_long_paragraph_is_hard_split():
     assert len(chunks) == 5
 
 
+def test_markdown_sections_split_by_heading():
+    md = (
+        "# Title\n\nIntro line.\n\n"
+        "## Working capital\n\nCurrent assets minus current liabilities.\n\n"
+        "## Gross profit\n\nRevenue minus COGS.\n"
+    )
+    chunks = chunk_text(md, max_chars=1000)
+    # Each ## section must land in its own chunk, not be merged together.
+    wc = [c for c in chunks if "Working capital" in c]
+    gp = [c for c in chunks if "Gross profit" in c]
+    assert len(wc) == 1 and len(gp) == 1
+    assert wc[0] is not gp[0]
+    assert "Gross profit" not in wc[0]
+
+
+def test_plain_text_without_headings_still_chunks():
+    text = "\n\n".join("sentence " * 10 for _ in range(5))
+    assert len(chunk_text(text, max_chars=120, overlap_chars=20)) >= 1
+
+
+def test_citation_artifact_stripped_but_real_kept():
+    from fin_engine.rag.pipeline import _clean_answer
+    assert _clean_answer("PBT subtracts interest [Source 1]. [Source N].") == \
+        "PBT subtracts interest [Source 1]."
+    assert _clean_answer("Answer here. [Source ] ()") == "Answer here."
+
+
+def test_think_tags_stripped():
+    from fin_engine.rag.pipeline import _clean_answer
+    assert _clean_answer("<think>reasoning here</think>Real answer.") == "Real answer."
+    # A stray closing tag is removed; surrounding line breaks are preserved.
+    assert _clean_answer("Answer.\n</think>\nmore") == "Answer.\n\nmore"
+    assert "</think>" not in _clean_answer("x </think> y")
+
+
 def test_ingest_and_retrieve_ranks_relevant_first():
     kb = KnowledgeBaseA(embedder=HashEmbedder())
     kb.ingest_text("Working capital is current assets minus current liabilities.",
