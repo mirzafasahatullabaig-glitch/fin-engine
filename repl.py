@@ -124,13 +124,26 @@ def main():
 
         if cmd in ("quit", "exit", "q"):
             break
-        elif cmd == "help":
+        try:
+            _dispatch(cmd, rest, journal, chart, router, advisor)
+        except Exception as e:  # never let one bad command kill the console
+            print(f"error: {e}")
+
+
+def _dispatch(cmd, rest, journal, chart, router, advisor):
+        if cmd == "help":
             print(HELP)
         elif cmd == "seed":
+            existing = {e.entry_id for e in journal.entries}
+            n = 0
             for eid, date, desc, legs in SAMPLE:
+                if eid in existing:
+                    continue  # idempotent: don't re-post, don't crash
                 journal.post(JournalEntry(eid, date, desc,
                                           [Posting(a, v) for a, v in legs]))
-            print(f"seeded {len(SAMPLE)} entries")
+                n += 1
+            print(f"seeded {n} new entries"
+                  + (" (sample already loaded)" if n == 0 else ""))
         elif cmd == "post":
             print(_post(journal, chart, rest))
         elif cmd == "ask":
@@ -142,19 +155,19 @@ def main():
         elif cmd == "advise":
             if not rest:
                 print("usage: advise <question>")
-                continue
+                return
             if advisor["kb"] is None:
                 try:
                     advisor["kb"], advisor["gen"] = _make_advisor()
                 except Exception as e:
                     print(f"advisor unavailable (needs Ollama): {e}")
-                    continue
+                    return
             try:
                 adv = advise(rest, journal, chart, "2026-11", TODAY,
                              advisor["kb"], advisor["gen"])
             except Exception as e:
                 print(f"advise failed: {e}")
-                continue
+                return
             print("  Verified figures (engine, not the model):")
             for key in ("net_profit", "working_capital", "current_ratio",
                         "total_assets", "equity"):
