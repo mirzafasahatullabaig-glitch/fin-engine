@@ -14,6 +14,10 @@ from .models import Ledger, LedgerLine, FORMULA_VERSION
 from .router import QueryRouter, RouteResult, Intent, classify_intent
 from .journal import Journal, JournalEntry, Posting
 from .balance_sheet import BalanceSheet
+from .accounts import (
+    Account, AccountType, ChartOfAccounts, NormalBalance, StatementCategory,
+    starter_chart,
+)
 
 __all__ = [
     "calculate_pnl",
@@ -33,4 +37,10 @@ __all__ = [
     "JournalEntry",
     "Posting",
     "BalanceSheet",
+    "Account",
+    "AccountType",
+    "ChartOfAccounts",
+    "NormalBalance",
+    "StatementCategory",
+    "starter_chart",
 ]
