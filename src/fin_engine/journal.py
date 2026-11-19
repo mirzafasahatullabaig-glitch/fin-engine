@@ -1,0 +1,126 @@
+"""Double-entry journal: the posting layer the P&L/cash-flow engine assumes.
+
+Until now a :class:`~fin_engine.models.Ledger` was just a bag of pre-classified
+magnitudes. This module adds the step before that: real journal entries with a
+debit side and a credit side that must balance, duplicate detection, and
+validation warnings surfaced to every report (report §2.B/§2.D).
+
+Design notes (ponytail: smallest thing that is actually double-entry):
+- An entry is one or more postings; each posting is an account + a SIGNED
+  amount where debit is +, credit is -. The entry balances when its postings
+  sum to exactly zero. This is simpler and harder to get wrong than separate
+  debit/credit magnitude fields, and it generalises to split entries for free.
+- Amounts stay Decimal via ``money()`` — no float ever enters a posting.
+- Nothing here guesses or auto-posts: unbalanced or duplicate entries are
+  REJECTED (raise) or FLAGGED (warnings list), never silently fixed.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+from decimal import Decimal
+
+from .models import FORMULA_VERSION, money
+
+
+@dataclass(frozen=True)
+class Posting:
+    """One side of a journal entry.
+
+    ``amount`` is signed: a debit is positive, a credit is negative. A balanced
+    entry's postings sum to zero.
+    """
+
+    account: str
+    amount: Decimal
+    description: str = ""
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "amount", money(self.amount))
+        if self.amount == 0:
+            raise ValueError(f"posting to {self.account!r} has zero amount")
+        if not self.account.strip():
+            raise ValueError("posting account must be non-empty")
+
+    @property
+    def is_debit(self) -> bool:
+        return self.amount > 0
+
+
+@dataclass(frozen=True)
+class JournalEntry:
+    """A balanced set of postings recorded on one date.
+
+    Raises ``ValueError`` at construction if debits != credits, so an unbalanced
+    entry can never be posted. ``ref`` is the caller's unique reference used for
+    duplicate detection; two entries with the same ``ref`` are duplicates.
+    """
+
+    entry_id: str
+    date: str          # ISO "YYYY-MM-DD"; opaque string, compared not parsed
+    description: str
+    postings: tuple[Posting, ...]
+    ref: str = ""      # external reference (invoice no., bank txn id, ...)
+    formula_version: str = FORMULA_VERSION
+
+    def __post_init__(self) -> None:
+        if isinstance(self.postings, list):
+            object.__setattr__(self, "postings", tuple(self.postings))
+        if len(self.postings) < 2:
+            raise ValueError(
+                f"entry {self.entry_id!r} needs >= 2 postings (a debit and a "
+                f"credit), got {len(self.postings)}"
+            )
+        imbalance = sum((p.amount for p in self.postings), Decimal(0))
+        if imbalance != 0:
+            raise ValueError(
+                f"entry {self.entry_id!r} is unbalanced: debits - credits = "
+                f"{imbalance} (must be 0)"
+            )
+
+    @property
+    def total_debits(self) -> Decimal:
+        return sum((p.amount for p in self.postings if p.amount > 0), Decimal(0))
+
+
+@dataclass
+class Journal:
+    """An append-only collection of balanced entries for one entity.
+
+    ``post`` enforces unique ``entry_id`` and flags duplicate ``ref`` values.
+    Validation never silently drops data: a duplicate id is rejected outright
+    (it would corrupt the audit trail), while a repeated ``ref`` is recorded in
+    ``warnings`` for review (same bank reference may legitimately recur, so we
+    flag not reject — report §2.D).
+    """
+
+    entity: str
+    entries: list[JournalEntry] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
+
+    def post(self, entry: JournalEntry) -> None:
+        if any(e.entry_id == entry.entry_id for e in self.entries):
+            raise ValueError(
+                f"duplicate entry_id {entry.entry_id!r}; ids must be unique"
+            )
+        if entry.ref and any(e.ref == entry.ref for e in self.entries):
+            self.warnings.append(
+                f"entry {entry.entry_id!r} reuses ref {entry.ref!r} — possible "
+                f"duplicate transaction, review before trusting totals"
+            )
+        self.entries.append(entry)
+
+    def balance(self, account: str) -> Decimal:
+        """Net balance of one account (sum of signed postings to it)."""
+        return sum(
+            (p.amount for e in self.entries for p in e.postings
+             if p.account == account),
+            Decimal(0),
+        )
+
+    def is_balanced(self) -> bool:
+        """Whole-journal invariant: all signed postings sum to zero."""
+        return sum(
+            (p.amount for e in self.entries for p in e.postings),
+            Decimal(0),
+        ) == 0
