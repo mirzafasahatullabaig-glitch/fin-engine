@@ -65,10 +65,31 @@ def test_business_uses_engine_figures_not_llm():
 
 
 def test_combined_merges_figures_and_reference():
-    r = QueryRouter(kb_a=_kb(), ledger_provider=_ledger).ask(
-        "Is our working capital healthy?")
+    # v1.5.0 change (prompt 6.3): working capital is a BALANCE-SHEET metric and
+    # must come from an accounting provider (journal+chart), never from P&L. The
+    # pre-v1.5 version of this test passed a P&L-only ledger_provider and
+    # asserted r.pnl is not None — that encoded the exact defect the prompt
+    # fixes, so it is corrected here to use the accounting provider.
+    from fin_engine import Account, ChartOfAccounts, Journal, JournalEntry, Posting
+
+    coa = ChartOfAccounts("acme")
+    coa.add(Account("1000", "Cash", AccountGroup.ASSET))
+    coa.add(Account("2000", "Accounts Payable", AccountGroup.LIABILITY))
+    coa.add(Account("3000", "Owner's Equity", AccountGroup.EQUITY, current=False))
+    j = Journal(entity="acme", chart=coa)
+    j.post(JournalEntry("E0", "2026-11-01", "capital",
+                        [Posting("1000", "10000"), Posting("3000", "-10000")]))
+    j.post(JournalEntry("E1", "2026-11-02", "buy on credit",
+                        [Posting("1000", "4000"), Posting("2000", "-4000")]))
+
+    r = QueryRouter(
+        kb_a=_kb(),
+        accounting_provider=lambda: (j, coa, "2026-11", "2026-11-30"),
+    ).ask("Is our working capital healthy?")
     assert r.intent is Intent.COMBINED
-    assert r.pnl is not None                  # verified figures present
+    assert r.bs is not None                   # from the balance sheet, not P&L
+    assert r.pnl is None
+    assert r.value == Decimal("10000")        # CA 14000 - CL 4000
     assert "Reference context" in r.answer    # plus RAG explanation
     assert "glossary.md" in r.citations
 
