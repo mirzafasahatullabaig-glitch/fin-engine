@@ -16,8 +16,11 @@ sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
 from fin_engine import (
     Journal, JournalEntry, Posting, starter_chart, trial_balance,
     pnl_from_journal, balance_sheet_from_journal, reconcile, advise,
+    configure_logging, health_check,
 )
 from fin_engine.router import QueryRouter, detect_metric
+
+configure_logging()  # honours FIN_ENGINE_LOG_LEVEL (default WARNING = quiet)
 
 TODAY = "2026-11-30"  # default as-of / posting date for this session
 
@@ -46,6 +49,7 @@ Commands:
   pnl [period]             Show the P&L (default 2026-11)
   bs                       Show the balance sheet
   check                    Run reconciliation
+  health                   Check Ollama is up and the models are pulled
   seed                     Load a small sample company
   help                     This text
   quit                     Exit
@@ -96,6 +100,9 @@ def _make_advisor():
     """
     from fin_engine.rag import KnowledgeBaseA, OllamaEmbedder
     from fin_engine.rag.pipeline import _ollama_generate
+    h = health_check()
+    if not h.ok:
+        raise RuntimeError(h.detail or "Ollama health check failed")
     kb = KnowledgeBaseA(embedder=OllamaEmbedder())
     sample = Path(__file__).resolve().parent / "data" / "kb_a_sample"
     for md in sorted(sample.glob("*.md")):
@@ -152,6 +159,12 @@ def _dispatch(cmd, rest, journal, chart, router, advisor):
                       "capital, current ratio, total assets, ...")
             else:
                 print(router.ask(rest).answer)
+        elif cmd == "health":
+            h = health_check()
+            print(f"  Ollama up: {h.ollama_up}")
+            print(f"  gen model present: {h.gen_model_present}")
+            print(f"  embed model present: {h.embed_model_present}")
+            print(f"  overall OK: {h.ok}" + (f"  — {h.detail}" if h.detail else ""))
         elif cmd == "advise":
             if not rest:
                 print("usage: advise <question>")

@@ -4,14 +4,17 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "fin-engine"
-version = "1.0.0"
-description = "Deterministic financial calculation and verification engine for the local AI business/finance system."
+version = "1.5.3"
+description = "Local-first deterministic finance engine with a unified double-entry accounting core, journal-derived statements, metric router, and an LLM advisory layer over verified figures."
 requires-python = ">=3.11"
-# The finance engine is stdlib-only. NumPy is used only by the RAG vector store.
+# NumPy backs the RAG vector store, which the router imports, so it is a runtime
+# dependency today. (A future split could make the pure accounting core
+# importable without it — see KNOWN_LIMITATIONS.)
 dependencies = ["numpy>=1.24"]
 
 [project.optional-dependencies]
 dev = ["pytest>=8"]
+# RAG + advisory also require a local Ollama with nomic-embed-text + granite4.2:8b.
 
 [tool.setuptools.packages.find]
 where = ["src"]

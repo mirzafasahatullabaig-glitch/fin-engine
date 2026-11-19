@@ -23,6 +23,9 @@ from enum import Enum
 from typing import Optional
 
 from .models import FORMULA_VERSION, money
+from .logging_setup import get_logger
+
+_log = get_logger(__name__)
 
 
 class EntryStatus(str, Enum):
@@ -114,6 +117,7 @@ class Journal:
 
     def post(self, entry: JournalEntry) -> None:
         if any(e.entry_id == entry.entry_id for e in self.entries):
+            _log.warning("rejected entry %r: duplicate entry_id", entry.entry_id)
             raise ValueError(
                 f"duplicate entry_id {entry.entry_id!r}; ids must be unique"
             )
@@ -129,6 +133,9 @@ class Journal:
                 f"duplicate transaction, review before trusting totals"
             )
         self.entries.append(entry)
+        # Log the event and leg count only — never amounts/descriptions.
+        _log.info("posted entry %r (%d legs, status=%s)",
+                  entry.entry_id, len(entry.postings), entry.status.value)
 
     def reverse(self, entry_id: str, reversal_id: str, date: str) -> JournalEntry:
         """Reverse a POSTED entry with an auditable offsetting entry (prompt 4.3).

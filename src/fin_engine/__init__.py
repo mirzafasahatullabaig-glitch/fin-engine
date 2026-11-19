@@ -27,6 +27,8 @@ from .statements import balance_sheet_from_journal, pnl_from_journal
 from .periods import PeriodRange, parse_date, resolve_period, date_in_period
 from .reconciliation import reconcile, ReconciliationReport
 from .advisor import advise, Advice
+from .config import Config, Health, health_check
+from .logging_setup import configure_logging, get_logger
 
 __all__ = [
     "calculate_pnl",
@@ -69,4 +71,9 @@ __all__ = [
     "ReconciliationReport",
     "advise",
     "Advice",
+    "Config",
+    "Health",
+    "health_check",
+    "configure_logging",
+    "get_logger",
 ]

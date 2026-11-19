@@ -126,7 +126,15 @@ def _ollama_generate(
     model: str = "granite4.2:8b",
     host: str = "http://localhost:11434",
     timeout: float = 120.0,
+    retries: int = 1,
 ) -> str:
+    """Call Ollama's /api/generate, with one retry on transient failure.
+
+    Logs the attempt and outcome (no prompt content — it may hold confidential
+    figures). Raises RuntimeError with a clear message if all attempts fail.
+    """
+    from ..logging_setup import get_logger
+    log = get_logger(__name__)
     payload = json.dumps(
         {"model": model, "prompt": prompt, "stream": False, "think": False}
     ).encode()
@@ -135,14 +143,20 @@ def _ollama_generate(
         data=payload,
         headers={"Content-Type": "application/json"},
     )
-    try:
-        with urllib.request.urlopen(req, timeout=timeout) as resp:
-            return json.loads(resp.read().decode()).get("response", "")
-    except urllib.error.URLError as exc:
-        raise RuntimeError(
-            f"Could not reach Ollama at {host} for model '{model}'. "
-            f"Is it running? (ollama pull {model})"
-        ) from exc
+    last_exc: Exception | None = None
+    for attempt in range(retries + 1):
+        try:
+            log.info("ollama generate: model=%s attempt=%d", model, attempt + 1)
+            with urllib.request.urlopen(req, timeout=timeout) as resp:
+                return json.loads(resp.read().decode()).get("response", "")
+        except (urllib.error.URLError, OSError, ValueError) as exc:
+            last_exc = exc
+            log.warning("ollama generate failed (attempt %d/%d): %s",
+                        attempt + 1, retries + 1, exc)
+    raise RuntimeError(
+        f"Could not reach Ollama at {host} for model '{model}' after "
+        f"{retries + 1} attempts. Is it running? (ollama pull {model})"
+    ) from last_exc
 
 
 @dataclass

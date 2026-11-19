@@ -22,8 +22,11 @@ from .balance_sheet import BalanceSheet
 from .journal import Journal
 from .pnl import PnL
 from .statements import balance_sheet_from_journal, pnl_from_journal
+from .logging_setup import get_logger
 
 Generator = Callable[[str], str]
+
+_log = get_logger(__name__)
 
 
 def _snapshot(pnl: PnL, bs: BalanceSheet) -> dict[str, object]:
@@ -93,5 +96,8 @@ def advise(question: str, journal: Journal, chart: ChartOfAccounts,
         if r.chunk.source not in citations:
             citations.append(r.chunk.source)
 
+    _log.info("advise: retrieved %d chunks from %d source(s), calling model",
+              len(retrieved), len(citations))
     recommendation = generate(_build_prompt(question, figures, guidance))
+    _log.info("advise: recommendation produced (%d chars)", len(recommendation))
     return Advice(question, figures, recommendation.strip(), citations)
