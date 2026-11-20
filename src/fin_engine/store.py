@@ -69,13 +69,61 @@ class JournalStore:
 
     def __init__(self, path: str | Path = ":memory:") -> None:
         self.path = str(path)
-        # isolation_level="" keeps explicit transactions; we use `with conn`.
         self._conn = sqlite3.connect(self.path)
         self._conn.execute("PRAGMA foreign_keys = ON")
+        # WAL lets concurrent readers proceed while a single writer commits
+        # (SQLite is single-writer by design). Skip it for in-memory DBs.
+        if self.path != ":memory:":
+            self._conn.execute("PRAGMA journal_mode = WAL")
         with self._conn:
             self._conn.executescript(_SCHEMA)
             self._migrate()
         _log.info("journal store opened at %s", self.path)
+
+    def backup(self, dest_path: str | Path) -> str:
+        """Write a consistent copy of the whole DB to ``dest_path``.
+
+        Uses SQLite's online backup API, which is safe to run while the store
+        is open (it copies a transactionally-consistent snapshot). Returns the
+        destination path. Verify a backup with ``integrity_check`` after.
+        """
+        dest = sqlite3.connect(str(dest_path))
+        try:
+            with dest:
+                self._conn.backup(dest)
+        finally:
+            dest.close()
+        _log.info("backed up %s -> %s", self.path, dest_path)
+        return str(dest_path)
+
+    def integrity_check(self) -> bool:
+        """True iff SQLite reports the database structurally sound.
+
+        Runs ``PRAGMA integrity_check`` (detects corruption). Use on a restored
+        backup before trusting it, or as a periodic health check.
+        """
+        row = self._conn.execute("PRAGMA integrity_check").fetchone()
+        ok = bool(row) and row[0] == "ok"
+        if not ok:
+            _log.warning("integrity check FAILED: %s", row)
+        return ok
+
+    @classmethod
+    def restore(cls, backup_path: str | Path, dest_path: str | Path) -> "JournalStore":
+        """Restore a backup file to ``dest_path`` and open it.
+
+        Refuses to proceed if the backup fails its integrity check, so a
+        corrupt backup can't silently become the live ledger.
+        """
+        src = JournalStore(backup_path)
+        try:
+            if not src.integrity_check():
+                raise ValueError(f"backup {backup_path} failed integrity check; "
+                                 "not restoring")
+            src.backup(dest_path)
+        finally:
+            src.close()
+        return cls(dest_path)
 
     def _migrate(self) -> None:
         """Add audit columns to a pre-v1.5.6 entries table (idempotent)."""

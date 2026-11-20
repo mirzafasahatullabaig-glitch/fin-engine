@@ -109,6 +109,7 @@ verified figures. Entries persist to SQLite and reload on the next launch.
 | [docs/CHART_OF_ACCOUNTS.md](docs/CHART_OF_ACCOUNTS.md) | Account model, validation, starter chart, statement mapping |
 | [docs/RECONCILIATION_GUIDE.md](docs/RECONCILIATION_GUIDE.md) | The invariant checks and the reconciliation report |
 | [docs/ERROR_REFERENCE.md](docs/ERROR_REFERENCE.md) | Every exception, its cause, and how to resolve it |
+| [docs/OPERATIONS.md](docs/OPERATIONS.md) | Backup, recovery, concurrency (WAL), and the access-control seam |
 | [docs/TEST_REPORT.md](docs/TEST_REPORT.md) | Test breakdown and how to run/interpret them |
 | [docs/KNOWN_LIMITATIONS.md](docs/KNOWN_LIMITATIONS.md) | What's deferred and the trigger for building it |
 | [CHANGELOG.md](CHANGELOG.md) | Version history |

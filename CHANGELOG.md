@@ -2,6 +2,17 @@
 
 All notable changes to fin-engine. Versions are git tags; dates are UTC.
 
+## v1.5.9 — operations: backup/recovery, authz seam, WAL
+- `JournalStore.backup()` / `.integrity_check()` / `.restore()` (restore refuses
+  a corrupt backup). WAL mode for concurrent readers.
+- `authz.py`: `Permission`, `Authorizer`, `AllowAll` (default), `RoleBasedAuthorizer`;
+  `advise()` enforces an authorizer when supplied. Access control is a real seam,
+  off by default (single-user). `docs/OPERATIONS.md`.
+
+## v1.5.8 — documentation
+- API reference, correctness-verification guide, error reference, architecture
+  diagram (Mermaid), README documentation index.
+
 ## v1.5.7 — journal-derived cash flow
 - `cash_flow_from_journal`: direct-method cash-flow statement derived from the
   journal. Net change reconciles exactly to the change in cash-account balances.

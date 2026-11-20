@@ -77,13 +77,20 @@ class Advice:
 
 def advise(question: str, journal: Journal, chart: ChartOfAccounts,
            period: str, as_of: str, kb_a, generate: Generator,
-           k: int = 3) -> Advice:
+           k: int = 3, authorizer=None, principal: str = "") -> Advice:
     """Produce grounded business advice (prompt-style separation of fact/opinion).
 
     ``kb_a`` is a KnowledgeBaseA (for retrieval); ``generate`` turns a prompt
     into text (e.g. the project's granite4.2:8b caller). Numbers come from the
     engine, so the model cannot fabricate them.
+
+    ``authorizer`` is the access-control seam (v1.5.9): if supplied, the caller
+    must hold ``Permission.ADVISE``, else ``PermissionError`` is raised. Default
+    (None) allows everything — the single-user local behaviour.
     """
+    if authorizer is not None:
+        from .authz import Permission, require
+        require(authorizer, Permission.ADVISE, principal)
     # Advice is only trustworthy over consistent books: reconcile first, and
     # refuse to advise on data that fails the accounting invariants (v1.5.4 #3).
     from .reconciliation import reconcile

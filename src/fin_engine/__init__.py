@@ -31,6 +31,9 @@ from .reconciliation import reconcile, ReconciliationReport
 from .advisor import advise, Advice
 from .config import Config, Health, health_check
 from .store import JournalStore
+from .authz import (
+    Permission, Authorizer, AllowAll, RoleBasedAuthorizer, require,
+)
 from .logging_setup import configure_logging, get_logger
 
 __all__ = [
@@ -81,4 +84,9 @@ __all__ = [
     "configure_logging",
     "get_logger",
     "JournalStore",
+    "Permission",
+    "Authorizer",
+    "AllowAll",
+    "RoleBasedAuthorizer",
+    "require",
 ]
