@@ -1,28 +1,31 @@
-# Unified Accounting Architecture (v1.5.0)
+# Unified Accounting Architecture (v1.5.x)
 
 The journal is the single source of truth. Every authoritative statement is
 derived from posted journal entries via the general ledger — there is no
 separately-entered P&L or balance-sheet dataset.
 
+```mermaid
+flowchart TD
+    COA[Chart of Accounts<br/>accounts.py] --> JE[Journal engine<br/>journal.py]
+    JE -->|balanced, validated,<br/>POSTED/DRAFT/REVERSED| VJ[Validated journal]
+    STORE[(SQLite store<br/>store.py)] <-->|save / load,<br/>revalidated| VJ
+    VJ --> GL[General ledger<br/>ledger_gl.py<br/>balances · activity · trial balance]
+    GL --> PNL[P&amp;L<br/>pnl_from_journal]
+    GL --> BS[Balance sheet<br/>balance_sheet_from_journal]
+    GL --> CF[Cash flow<br/>cash_flow_from_journal]
+    PNL --> MET[Financial metrics<br/>margins · working capital · ratios]
+    BS --> MET
+    MET --> RT[Query router<br/>router.py<br/>detect_metric → right calc]
+    RT --> AI[Local AI / RAG<br/>advisor.py · rag/<br/>explains verified figures,<br/>never computes them]
+    GL --> REC[Reconciliation<br/>reconciliation.py<br/>proves statements agree with ledger]
 ```
-Chart of Accounts (accounts.py)
-        |
-Journal engine (journal.py)  --- postings validated against the chart
-        |
-Validated journal            --- balanced entries, POSTED/DRAFT/REVERSED
-        |
-General ledger (ledger_gl.py)--- account_balance / account_activity / trial_balance
-        |
-   +----+--------------------+
-   |                         |
-P&L (statements.py)   Balance sheet (statements.py)
-pnl_from_journal      balance_sheet_from_journal
-   |                         |
-Financial metrics (balance_sheet.py: working capital, ratios; pnl.py: margins)
-        |
-Query router (router.py)     --- detect_metric -> correct calculation
-        |
-Local AI / RAG (rag/)        --- explains verified figures, never computes them
+
+Plain-text fallback:
+
+```
+Chart of Accounts -> Journal -> (SQLite store) -> General ledger
+   -> P&L / Balance sheet / Cash flow -> Metrics -> Router -> Local AI
+General ledger -> Reconciliation (invariant checks)
 ```
 
 ## Data flow guarantees

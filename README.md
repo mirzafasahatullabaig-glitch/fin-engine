@@ -99,6 +99,20 @@ Post journal entries and query live: `seed`, `post`, `ask`, `advise`, `bs`,
 answers are deterministic (no Ollama); `advise` uses the local model over
 verified figures. Entries persist to SQLite and reload on the next launch.
 
+## Documentation
+
+| Doc | What it covers |
+|---|---|
+| [docs/API_REFERENCE.md](docs/API_REFERENCE.md) | Every public function/class, parameters, return types, examples |
+| [docs/VERIFYING_CORRECTNESS.md](docs/VERIFYING_CORRECTNESS.md) | The accounting invariants and how to verify the numbers yourself |
+| [docs/UNIFIED_ACCOUNTING_ARCHITECTURE.md](docs/UNIFIED_ACCOUNTING_ARCHITECTURE.md) | Module map, data-flow diagram, retained-earnings treatment |
+| [docs/CHART_OF_ACCOUNTS.md](docs/CHART_OF_ACCOUNTS.md) | Account model, validation, starter chart, statement mapping |
+| [docs/RECONCILIATION_GUIDE.md](docs/RECONCILIATION_GUIDE.md) | The invariant checks and the reconciliation report |
+| [docs/ERROR_REFERENCE.md](docs/ERROR_REFERENCE.md) | Every exception, its cause, and how to resolve it |
+| [docs/TEST_REPORT.md](docs/TEST_REPORT.md) | Test breakdown and how to run/interpret them |
+| [docs/KNOWN_LIMITATIONS.md](docs/KNOWN_LIMITATIONS.md) | What's deferred and the trigger for building it |
+| [CHANGELOG.md](CHANGELOG.md) | Version history |
+
 ## Run
 
 ```powershell
