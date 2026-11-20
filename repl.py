@@ -16,8 +16,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
 
 from fin_engine import (
     Journal, JournalEntry, Posting, starter_chart, trial_balance,
-    pnl_from_journal, balance_sheet_from_journal, reconcile, advise,
-    configure_logging, health_check, JournalStore,
+    pnl_from_journal, balance_sheet_from_journal, cash_flow_from_journal,
+    reconcile, advise, configure_logging, health_check, JournalStore,
 )
 from fin_engine.router import QueryRouter, detect_metric
 
@@ -49,6 +49,7 @@ Commands:
   trial                    Show the trial balance
   pnl [period]             Show the P&L (default 2026-11)
   bs                       Show the balance sheet
+  cashflow [period]        Show the (direct-method) cash-flow statement
   check                    Run reconciliation
   history                  Audit trail: each entry with who recorded it and when
   health                   Check Ollama is up and the models are pulled
@@ -244,6 +245,11 @@ def _dispatch(cmd, rest, journal, chart, router, advisor, store):
             p = pnl_from_journal(journal, chart, rest or "2026-11")
             print(f"  Revenue {p.revenue:,}  COGS {p.cogs:,}  Gross {p.gross_profit:,}")
             print(f"  EBIT {p.ebit:,}  PBT {p.pbt:,}  Net {p.net_profit:,}")
+        elif cmd == "cashflow":
+            cf = cash_flow_from_journal(journal, chart, rest or "2026-11")
+            print(f"  Operating {cf.operating:,}  Investing {cf.investing:,}  "
+                  f"Financing {cf.financing:,}")
+            print(f"  Net change in cash {cf.net_change:,}")
         elif cmd == "bs":
             bs = balance_sheet_from_journal(journal, chart, as_of=TODAY)
             print(f"  Assets {bs.total_assets:,} = Liab {bs.total_liabilities:,} "

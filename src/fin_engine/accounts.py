@@ -103,6 +103,7 @@ class Account:
     parent_code: Optional[str] = None
     is_active: bool = True
     description: str = ""
+    is_cash: bool = False           # cash/bank account: drives cash-flow (v1.5.7)
 
     def __post_init__(self) -> None:
         if not self.code.strip():
@@ -207,9 +208,13 @@ _STARTER: list[tuple[str, str, AccountGroup, bool]] = [
 ]
 
 
+_CASH_CODES = {"1000", "1010"}  # Cash, Bank — the starter chart's cash accounts
+
+
 def starter_chart(entity: str) -> ChartOfAccounts:
     """A ready-to-use chart matching the prompt's example (prompt 3.2)."""
     coa = ChartOfAccounts(entity=entity)
     for code, name, group, current in _STARTER:
-        coa.add(Account(code=code, name=name, group=group, current=current))
+        coa.add(Account(code=code, name=name, group=group, current=current,
+                        is_cash=code in _CASH_CODES))
     return coa

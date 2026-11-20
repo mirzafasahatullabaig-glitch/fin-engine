@@ -23,7 +23,9 @@ from .accounts import (
 from .ledger_gl import (
     account_activity, account_balance, trial_balance, TrialBalance,
 )
-from .statements import balance_sheet_from_journal, pnl_from_journal
+from .statements import (
+    balance_sheet_from_journal, pnl_from_journal, cash_flow_from_journal,
+)
 from .periods import PeriodRange, parse_date, resolve_period, date_in_period
 from .reconciliation import reconcile, ReconciliationReport
 from .advisor import advise, Advice
@@ -64,6 +66,7 @@ __all__ = [
     "TrialBalance",
     "balance_sheet_from_journal",
     "pnl_from_journal",
+    "cash_flow_from_journal",
     "PeriodRange",
     "parse_date",
     "resolve_period",

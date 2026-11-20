@@ -82,7 +82,7 @@ metrics and the advisor. See `docs/UNIFIED_ACCOUNTING_ARCHITECTURE.md`.
 | `accounts.py` | Chart of Accounts + explicit account→statement mapping (one taxonomy, derived from `AccountGroup`) |
 | `journal.py` | double-entry `Journal`/`JournalEntry`/`Posting`; DRAFT/POSTED/REVERSED lifecycle, append-only reversal, strict date + entity validation |
 | `ledger_gl.py` | `account_balance` / `account_activity` / `trial_balance` from posted entries |
-| `statements.py` | `pnl_from_journal`, `balance_sheet_from_journal` (refunds net within a group; retained earnings folded into equity) |
+| `statements.py` | `pnl_from_journal`, `balance_sheet_from_journal`, `cash_flow_from_journal` (direct-method, reconciles to cash-account balances) |
 | `periods.py` | typed ISO date + period (`YYYY-MM`/`YYYY-Qn`/`YYYY`) parsing, leap-year correct |
 | `reconciliation.py` | `reconcile()` → structured report of accounting invariants |
 | `store.py` | SQLite persistence with transaction-safe entry writes (exact Decimal, no float) |
@@ -95,8 +95,9 @@ metrics and the advisor. See `docs/UNIFIED_ACCOUNTING_ARCHITECTURE.md`.
 python repl.py
 ```
 Post journal entries and query live: `seed`, `post`, `ask`, `advise`, `bs`,
-`pnl`, `trial`, `check`, `health`, `help`, `quit`. Metric answers are
-deterministic (no Ollama); `advise` uses the local model over verified figures.
+`pnl`, `cashflow`, `trial`, `check`, `history`, `health`, `help`, `quit`. Metric
+answers are deterministic (no Ollama); `advise` uses the local model over
+verified figures. Entries persist to SQLite and reload on the next launch.
 
 ## Run
 

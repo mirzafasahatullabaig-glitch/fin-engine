@@ -23,9 +23,10 @@ from typing import Optional
 
 from .accounts import ChartOfAccounts, StatementCategory
 from .balance_sheet import BalanceSheet
+from .cashflow import CashFlow
 from .journal import EntryStatus, Journal
 from .ledger_gl import _signed_net
-from .models import AccountGroup, Ledger, LedgerLine
+from .models import AccountGroup, CashFlowCategory, Ledger, LedgerLine
 from .pnl import PnL, calculate_pnl
 
 
@@ -96,6 +97,79 @@ def pnl_from_journal(journal: Journal, chart: ChartOfAccounts, period: str,
         return calculate_pnl(Ledger(entity=journal.entity, period=period,
                                     lines=lines))
     return _pnl_from_group_net(journal.entity, period, group_net)
+
+
+# Which cash-flow section a non-cash leg's statement category implies. Investing
+# = (de)investment in non-current assets; financing = loans, equity, dividends;
+# everything else (revenue, expenses, current assets/liabilities) is operating.
+_CATEGORY_TO_CASHFLOW = {
+    StatementCategory.NON_CURRENT_ASSET: CashFlowCategory.INVESTING,
+    StatementCategory.NON_CURRENT_LIABILITY: CashFlowCategory.FINANCING,
+    StatementCategory.CURRENT_LIABILITY: CashFlowCategory.OPERATING,
+    StatementCategory.EQUITY: CashFlowCategory.FINANCING,
+    StatementCategory.FINANCE_COST: CashFlowCategory.FINANCING,
+}
+
+
+def cash_flow_from_journal(journal: Journal, chart: ChartOfAccounts, period: str,
+                           start=None, end=None) -> CashFlow:
+    """Direct-method cash flow derived from the journal (v1.5.7).
+
+    For each posted entry that moves a cash account (``Account.is_cash``), the
+    cash delta is the net of its cash-account postings. The entry's NON-cash
+    legs decide the section: a credit to Sales -> operating, a debit to
+    Equipment (non-current asset) -> investing, a loan or equity leg ->
+    financing. Short-term loans map by their non-current flag.
+
+    This is a genuine direct-method statement reconciled to the journal:
+    ``net_change`` equals the actual change in cash-account balances over the
+    period. It is NOT an indirect statement (no working-capital adjustments);
+    see docs. Categories are never invented — an entry with no classifiable
+    non-cash leg defaults to operating and is the documented edge.
+    """
+    if start is None and end is None:
+        try:
+            from .periods import resolve_period
+            pr = resolve_period(period)
+            start, end = pr.start_iso(), pr.end_iso()
+        except ValueError:
+            pass
+    cash_codes = {a.code for a in chart.accounts() if a.is_cash}
+    totals = {CashFlowCategory.OPERATING: Decimal(0),
+              CashFlowCategory.INVESTING: Decimal(0),
+              CashFlowCategory.FINANCING: Decimal(0)}
+    for e in journal.entries:
+        if e.status is EntryStatus.DRAFT:
+            continue
+        if start is not None and e.date < start:
+            continue
+        if end is not None and e.date > end:
+            continue
+        cash_delta = sum((p.amount for p in e.postings
+                          if p.account in cash_codes), Decimal(0))
+        if cash_delta == 0:
+            continue  # no cash moved in this entry
+        # Section from the non-cash legs. Short-term loans (current liability)
+        # are financing even though current, so special-case loan accounts by
+        # group; otherwise use the category map, defaulting to operating.
+        section = CashFlowCategory.OPERATING
+        for p in e.postings:
+            if p.account in cash_codes:
+                continue
+            acct = chart.get(p.account)
+            if acct.group is AccountGroup.LIABILITY and "loan" in acct.name.lower():
+                section = CashFlowCategory.FINANCING
+                break
+            mapped = _CATEGORY_TO_CASHFLOW.get(acct.statement_category)
+            if mapped is not None:
+                section = mapped
+                break
+        totals[section] += cash_delta
+    op = totals[CashFlowCategory.OPERATING]
+    inv = totals[CashFlowCategory.INVESTING]
+    fin = totals[CashFlowCategory.FINANCING]
+    return CashFlow(entity=journal.entity, period=period, operating=op,
+                    investing=inv, financing=fin, net_change=op + inv + fin)
 
 
 def _pnl_from_group_net(entity: str, period: str, group_net: dict) -> PnL:
