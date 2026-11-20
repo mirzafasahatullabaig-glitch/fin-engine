@@ -77,6 +77,14 @@ working. To use the unified path, build a `ChartOfAccounts`, attach it to the
 `Journal`, and call the `*_from_journal` builders or give the router an
 `accounting_provider`.
 
+## Post-v1.5.0 increments
+
+- **v1.5.1** — interactive REPL (`repl.py`); LLM advisory layer (`advisor.py`) over engine-verified figures.
+- **v1.5.3** — observability (`logging_setup.py`, library-safe NullHandler, privacy-aware), reliability (`config.py` health check, Ollama timeout + one retry), packaging fix.
+- **v1.5.4** — config propagation end to end (embedder + generator from `Config.from_env()`); strict date validation + entity isolation in the journal; refund/contra netting in `pnl_from_journal` (nets within a group, flows through when net-negative, never crashes); **advice gated on a passing `reconcile()`** (the model is never called on inconsistent books); **SQLite persistence** (`store.py`, transaction-safe, exact Decimal, revalidates on reload); GitHub Actions CI (`.github/workflows/tests.yml`, offline suite on 3.11 + 3.12).
+
+Test count grew 123 → 143 across these increments.
+
 ## v1.6.0 roadmap
 
 1. Journal-derived cash flow (add cash/accrual metadata to postings).

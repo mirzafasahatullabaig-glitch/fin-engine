@@ -10,7 +10,7 @@ it and a production financial system. They are deferred on purpose, not faked.
 
 | Limitation | Impact | Upgrade trigger |
 |---|---|---|
-| **No persistence.** `Journal`/`Ledger` are in-memory; `router.ledger_provider` is a stub returning `None`. | Nothing survives a restart; the router answers business questions with "no records available". | When real records exist, back `ledger_provider` with a store. SQLite is the simplest reliable choice; PostgreSQL only if concurrent writers appear. Put it behind a repository interface so callers don't change. |
+| ~~No persistence.~~ **PARTLY RESOLVED in v1.5.4.** `store.py` (`JournalStore`) persists accounts + entries + postings to SQLite, transaction-safe, exact Decimal, revalidating on reload. | Durable storage exists; the REPL does not yet auto-load/save it, and the router's `ledger_provider` is still caller-supplied. | Wire the REPL and router to a `JournalStore` by default. PostgreSQL only if concurrent writers appear. |
 | **No authentication / RBAC.** Any caller can read/post anything. | Fine for one local user; unsafe if shared. | First additional user. Add a permission check inside `ledger_provider` (the router already calls it per-request for exactly this reason). |
 | **No audit trail.** `Journal` is append-only in memory but records no who/when/before/after. | Can't answer "who changed this". | Same trigger as persistence — the audit log lives in the store, not in code. |
 | **Classification is keyword rules, not learned.** | Misses phrasings outside the rule list; those become `needs_review`. | Acceptable by design — review beats a wrong auto-post. Revisit only if review volume is painful. |

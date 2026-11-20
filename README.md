@@ -71,6 +71,33 @@ python rag_demo.py      # Knowledge Base A retrieval + answers
 python router_demo.py   # A/B routing across engine + RAG
 ```
 
+### Unified accounting engine (v1.5.x)
+
+The journal is the single source of truth: the same validated journal produces
+the trial balance, P&L and balance sheet, and those verified balances power the
+metrics and the advisor. See `docs/UNIFIED_ACCOUNTING_ARCHITECTURE.md`.
+
+| Piece | Purpose |
+|---|---|
+| `accounts.py` | Chart of Accounts + explicit account→statement mapping (one taxonomy, derived from `AccountGroup`) |
+| `journal.py` | double-entry `Journal`/`JournalEntry`/`Posting`; DRAFT/POSTED/REVERSED lifecycle, append-only reversal, strict date + entity validation |
+| `ledger_gl.py` | `account_balance` / `account_activity` / `trial_balance` from posted entries |
+| `statements.py` | `pnl_from_journal`, `balance_sheet_from_journal` (refunds net within a group; retained earnings folded into equity) |
+| `periods.py` | typed ISO date + period (`YYYY-MM`/`YYYY-Qn`/`YYYY`) parsing, leap-year correct |
+| `reconciliation.py` | `reconcile()` → structured report of accounting invariants |
+| `store.py` | SQLite persistence with transaction-safe entry writes (exact Decimal, no float) |
+| `config.py` / `logging_setup.py` | env-driven Ollama config, `health_check()`, structured logging |
+| `advisor.py` | LLM business advice over engine-verified figures — gated on a passing reconciliation |
+
+### Interactive console (`repl.py`)
+
+```
+python repl.py
+```
+Post journal entries and query live: `seed`, `post`, `ask`, `advise`, `bs`,
+`pnl`, `trial`, `check`, `health`, `help`, `quit`. Metric answers are
+deterministic (no Ollama); `advise` uses the local model over verified figures.
+
 ## Run
 
 ```powershell
@@ -79,13 +106,17 @@ py -3.11 -m venv .venv ; .\.venv\Scripts\Activate.ps1
 
 pip install -e ".[dev]"   # optional; demo.py and pytest work without it
 python demo.py            # worked examples from the report
-pytest                    # golden tests (includes the §7.3 PBT regressions)
+python repl.py            # interactive accounting console
+pytest                    # 143 offline tests (no Ollama needed)
 ```
 
-The finance engine is stdlib-only (`decimal`, `dataclasses`, `enum`). The RAG
-module adds one runtime dependency, **NumPy**, for the vector store. `pytest` is
-dev-only. The RAG tests use a deterministic fake embedder, so `pytest` needs
-**no Ollama** — only `rag_demo.py` does.
+The finance engine is stdlib-only (`decimal`, `dataclasses`, `enum`, `sqlite3`).
+The RAG module adds one runtime dependency, **NumPy**, for the vector store.
+`pytest` is dev-only and uses a deterministic fake embedder, so the offline
+suite needs **no Ollama** — only `rag_demo.py`, `test_e2e.py` and the `advise`
+command do. Config via `FIN_ENGINE_OLLAMA_HOST` / `FIN_ENGINE_GEN_MODEL` /
+`FIN_ENGINE_EMBED_MODEL` / `FIN_ENGINE_LOG_LEVEL`. CI runs the offline suite on
+Python 3.11 + 3.12 (`.github/workflows/tests.yml`).
 
 ## Design rules (from the report)
 
@@ -95,8 +126,17 @@ dev-only. The RAG tests use a deterministic fake embedder, so `pytest` needs
 
 ## Status
 
-Finance engine + golden tests complete (v1.0.x). Knowledge Base A general-docs
-RAG (v1.1.0) and the A/B query router (v1.2.0) complete, with offline tests.
-Not yet built: KB-B RAG over private records (the `ledger_provider` is a stub),
-role-based permission enforcement, a database, and the UI — those remain
-proposed work per the report roadmap.
+**v1.5.4** — 143 offline tests, all green. Delivered since the report's first
+build step:
+
+- v1.0.x finance engine + golden tests; v1.1.0 KB-A RAG; v1.2.0 A/B router; v1.3.0 audit fixes.
+- v1.4.0 double-entry journal + balance sheet/ratios.
+- **v1.5.0 unified accounting engine** — journal as single source of truth (Chart of Accounts, general ledger, journal-derived P&L/balance sheet, metric-specific router, periods, reconciliation).
+- **v1.5.1** interactive REPL; **v1.5.1** LLM advisory layer over verified figures.
+- **v1.5.3** observability (structured logging), reliability (health check, timeouts, retry), config.
+- **v1.5.4** config propagation, strict date/entity validation, refund netting, advice gated on reconciliation, **SQLite persistence**, GitHub Actions CI.
+
+Not yet built (documented with triggers in `docs/KNOWN_LIMITATIONS.md`): KB-B
+RAG over private records, role-based permissions, journal-derived cash flow,
+multi-entity shared store, a UI. Auth/RBAC/Postgres are deferred by design for a
+single-user local tool.
