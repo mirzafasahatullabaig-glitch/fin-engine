@@ -7,6 +7,7 @@ entries into the starter chart of accounts and ask metric questions, all
 computed deterministically (no Ollama needed). Type `help` for commands.
 """
 
+import os
 import sys
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
@@ -16,7 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent / "src"))
 from fin_engine import (
     Journal, JournalEntry, Posting, starter_chart, trial_balance,
     pnl_from_journal, balance_sheet_from_journal, reconcile, advise,
-    configure_logging, health_check,
+    configure_logging, health_check, JournalStore,
 )
 from fin_engine.router import QueryRouter, detect_metric
 
@@ -53,6 +54,9 @@ Commands:
   seed                     Load a small sample company
   help                     This text
   quit                     Exit
+
+Entries persist to a SQLite file (FIN_ENGINE_DB, default ./fin-engine.db) and
+reload on the next launch. The file is gitignored (it holds business records).
 """
 
 SAMPLE = [
@@ -116,34 +120,56 @@ def _make_advisor():
     return kb, generate
 
 
+ENTITY = "demo"
+
+
 def main():
-    chart = starter_chart("demo")
-    journal = Journal("demo", chart=chart)
+    # Persist to a SQLite file so entries survive restarts (v1.5.5). Path from
+    # FIN_ENGINE_DB, default ./fin-engine.db (gitignored — it holds records).
+    db_path = os.getenv("FIN_ENGINE_DB", "fin-engine.db")
+    store = JournalStore(db_path)
+
+    # Load an existing journal for the entity; if the DB is empty, start fresh
+    # with the starter chart and persist it so the chart is there next time.
+    journal = store.load_journal(ENTITY)
+    if journal.chart is None:
+        chart = starter_chart(ENTITY)
+        journal = Journal(ENTITY, chart=chart)
+        store.save_chart(chart)
+        loaded_msg = f"new ledger ({db_path})"
+    else:
+        chart = journal.chart
+        loaded_msg = f"loaded {len(journal.entries)} entries from {db_path}"
+
     router = QueryRouter(kb_a=_NoKB(),
                          accounting_provider=lambda: (journal, chart, "2026-11", TODAY))
     advisor = {"kb": None, "gen": None}  # built on first `advise`
-    print("fin-engine interactive console. Type 'help', or 'seed' for sample data.")
-    while True:
-        try:
-            line = input("fin> ").strip()
-        except (EOFError, KeyboardInterrupt):
-            print()
-            break
-        if not line:
-            continue
-        cmd, _, rest = line.partition(" ")
-        cmd = cmd.lower()
-        rest = rest.strip()
+    print(f"fin-engine interactive console — {loaded_msg}. "
+          "Type 'help', or 'seed' for sample data.")
+    try:
+        while True:
+            try:
+                line = input("fin> ").strip()
+            except (EOFError, KeyboardInterrupt):
+                print()
+                break
+            if not line:
+                continue
+            cmd, _, rest = line.partition(" ")
+            cmd = cmd.lower()
+            rest = rest.strip()
 
-        if cmd in ("quit", "exit", "q"):
-            break
-        try:
-            _dispatch(cmd, rest, journal, chart, router, advisor)
-        except Exception as e:  # never let one bad command kill the console
-            print(f"error: {e}")
+            if cmd in ("quit", "exit", "q"):
+                break
+            try:
+                _dispatch(cmd, rest, journal, chart, router, advisor, store)
+            except Exception as e:  # never let one bad command kill the console
+                print(f"error: {e}")
+    finally:
+        store.close()
 
 
-def _dispatch(cmd, rest, journal, chart, router, advisor):
+def _dispatch(cmd, rest, journal, chart, router, advisor, store):
         if cmd == "help":
             print(HELP)
         elif cmd == "seed":
@@ -155,10 +181,13 @@ def _dispatch(cmd, rest, journal, chart, router, advisor):
                 journal.post(JournalEntry(eid, date, desc,
                                           [Posting(a, v) for a, v in legs]))
                 n += 1
+            store.save_journal(journal)  # persist new entries
             print(f"seeded {n} new entries"
                   + (" (sample already loaded)" if n == 0 else ""))
         elif cmd == "post":
-            print(_post(journal, chart, rest))
+            msg = _post(journal, chart, rest)
+            store.save_journal(journal)  # persist if the post succeeded
+            print(msg)
         elif cmd == "ask":
             if detect_metric(rest) is None:
                 print("couldn't spot a metric; try: revenue, net profit, working "

@@ -14,3 +14,7 @@ data/*.json
 # Persisted vector indexes are rebuildable artifacts, not source.
 *.index.json
 # KB-A sample reference docs (data/kb_a_sample/) are non-confidential and kept.
+# Persisted SQLite ledgers hold business records — never commit (report §3.2).
+*.db
+*.sqlite
+*.sqlite3
