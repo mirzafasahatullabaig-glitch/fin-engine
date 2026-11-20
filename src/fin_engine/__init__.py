@@ -28,6 +28,7 @@ from .periods import PeriodRange, parse_date, resolve_period, date_in_period
 from .reconciliation import reconcile, ReconciliationReport
 from .advisor import advise, Advice
 from .config import Config, Health, health_check
+from .store import JournalStore
 from .logging_setup import configure_logging, get_logger
 
 __all__ = [
@@ -76,4 +77,5 @@ __all__ = [
     "health_check",
     "configure_logging",
     "get_logger",
+    "JournalStore",
 ]
