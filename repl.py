@@ -98,16 +98,22 @@ def _make_advisor():
     Lazy: only called on the first `advise`, so the REPL starts without Ollama.
     Returns (kb, generate) or raises with a clear message if Ollama is absent.
     """
+    from fin_engine import Config
     from fin_engine.rag import KnowledgeBaseA, OllamaEmbedder
     from fin_engine.rag.pipeline import _ollama_generate
-    h = health_check()
+    cfg = Config.from_env()
+    h = health_check(cfg)
     if not h.ok:
         raise RuntimeError(h.detail or "Ollama health check failed")
-    kb = KnowledgeBaseA(embedder=OllamaEmbedder())
+    kb = KnowledgeBaseA(embedder=OllamaEmbedder(model=cfg.embed_model,
+                                                host=cfg.ollama_host))
     sample = Path(__file__).resolve().parent / "data" / "kb_a_sample"
     for md in sorted(sample.glob("*.md")):
         kb.ingest_file(md)
-    return kb, _ollama_generate
+    # Generator that honours the configured host + model.
+    def generate(prompt: str) -> str:
+        return _ollama_generate(prompt, model=cfg.gen_model, host=cfg.ollama_host)
+    return kb, generate
 
 
 def main():

@@ -84,6 +84,19 @@ def advise(question: str, journal: Journal, chart: ChartOfAccounts,
     into text (e.g. the project's granite4.2:8b caller). Numbers come from the
     engine, so the model cannot fabricate them.
     """
+    # Advice is only trustworthy over consistent books: reconcile first, and
+    # refuse to advise on data that fails the accounting invariants (v1.5.4 #3).
+    from .reconciliation import reconcile
+    rep = reconcile(journal, chart, as_of=as_of)
+    if not rep.passed:
+        names = ", ".join(c.name for c in rep.failures[:5])
+        msg = ("Cannot advise: the books do not reconcile "
+               f"({len(rep.failures)} failed check(s): {names}). "
+               "Fix the journal before asking for advice.")
+        _log.warning("advise refused: reconciliation failed (%d failures)",
+                     len(rep.failures))
+        return Advice(question, {}, msg, [], grounded=False)
+
     pnl = pnl_from_journal(journal, chart, period=period)
     bs = balance_sheet_from_journal(journal, chart, as_of=as_of)
     figures = _snapshot(pnl, bs)

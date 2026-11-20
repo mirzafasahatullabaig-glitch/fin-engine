@@ -74,26 +74,52 @@ def pnl_from_journal(journal: Journal, chart: ChartOfAccounts, period: str,
             start, end = pr.start_iso(), pr.end_iso()
         except ValueError:
             pass  # opaque label (not YYYY-MM/Qn/YYYY): use the whole journal
-    lines: list[LedgerLine] = []
+
+    # Aggregate the SIGNED net per P&L group. A refund is a debit to revenue
+    # that nets within the revenue group (sales - refunds); a reversal nets the
+    # same way. We sum net-of-contra per group rather than per account, so a
+    # refund correctly reduces revenue instead of crashing the P&L (v1.5.4 #4).
+    group_net: dict = {}
     for acct in chart.accounts():
         group = _PNL_CATEGORY_TO_GROUP.get(acct.statement_category)
         if group is None:
-            continue  # balance-sheet account, not a P&L line
+            continue  # balance-sheet account (incl. inventory), not a P&L line
         mag = _period_magnitude(journal, chart, acct.code, start, end)
-        if mag == 0:
-            continue
-        # LedgerLine amounts are non-negative magnitudes; a contra movement
-        # (e.g. a refund making revenue negative) is surfaced, not silently
-        # dropped — guard rather than crash on the frozen >=0 invariant.
-        if mag < 0:
-            raise ValueError(
-                f"account {acct.code!r} has a contra balance {mag} for the "
-                f"period; review (possible refund/reversal misclassification) "
-                f"before producing a P&L"
-            )
-        lines.append(LedgerLine(group=group, amount=mag,
-                                description=acct.name, account_code=acct.code))
-    return calculate_pnl(Ledger(entity=journal.entity, period=period, lines=lines))
+        group_net[group] = group_net.get(group, Decimal(0)) + mag
+
+    # calculate_pnl consumes LedgerLines (amount >= 0) summed per group, so a
+    # non-negative group net maps straight to a line. A group whose net went
+    # contra (e.g. refunds exceeded sales) can't be a LedgerLine; compute the
+    # P&L directly for that rare case so the real (signed) figure flows through.
+    if all(v >= 0 for v in group_net.values()):
+        lines = [LedgerLine(group=g, amount=v) for g, v in group_net.items() if v]
+        return calculate_pnl(Ledger(entity=journal.entity, period=period,
+                                    lines=lines))
+    return _pnl_from_group_net(journal.entity, period, group_net)
+
+
+def _pnl_from_group_net(entity: str, period: str, group_net: dict) -> PnL:
+    """Apply the P&L formula to SIGNED per-group totals (contra-safe path).
+
+    Identical formula to calculate_pnl; used only when a group net is negative
+    (e.g. net-negative revenue from refunds), which a LedgerLine can't hold.
+    """
+    g = lambda grp: group_net.get(grp, Decimal(0))
+    revenue = g(AccountGroup.REVENUE)
+    cogs = g(AccountGroup.COGS)
+    opex = g(AccountGroup.OPERATING_EXPENSE)
+    other_income = g(AccountGroup.OTHER_INCOME)
+    finance_costs = g(AccountGroup.FINANCE_COST)
+    other_expenses = g(AccountGroup.OTHER_EXPENSE)
+    tax = g(AccountGroup.TAX)
+    gross_profit = revenue - cogs
+    ebit = gross_profit - opex
+    pbt = ebit + other_income - finance_costs - other_expenses
+    return PnL(entity=entity, period=period, revenue=revenue, cogs=cogs,
+               gross_profit=gross_profit, operating_expenses=opex, ebit=ebit,
+               other_income=other_income, finance_costs=finance_costs,
+               other_expenses=other_expenses, pbt=pbt, tax=tax,
+               net_profit=pbt - tax)
 
 
 def balance_sheet_from_journal(journal: Journal, chart: ChartOfAccounts,

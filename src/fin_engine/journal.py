@@ -72,7 +72,7 @@ class JournalEntry:
     """
 
     entry_id: str
-    date: str          # ISO "YYYY-MM-DD"; opaque string, compared not parsed
+    date: str          # ISO "YYYY-MM-DD"; validated at construction (v1.5.4)
     description: str
     postings: tuple[Posting, ...]
     ref: str = ""      # external reference (invoice no., bank txn id, ...)
@@ -80,6 +80,13 @@ class JournalEntry:
     formula_version: str = FORMULA_VERSION
 
     def __post_init__(self) -> None:
+        # Strict date: reject impossible/misformatted dates at the boundary so a
+        # bad date can never enter the ledger (v1.5.4). Keeps the string type.
+        from .periods import parse_date
+        try:
+            parse_date(self.date)
+        except ValueError as e:
+            raise ValueError(f"entry {self.entry_id!r}: {e}") from None
         if isinstance(self.postings, list):
             object.__setattr__(self, "postings", tuple(self.postings))
         if len(self.postings) < 2:
@@ -114,6 +121,18 @@ class Journal:
     entries: list[JournalEntry] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     chart: Optional["object"] = None  # ChartOfAccounts; optional to keep old API
+
+    def __post_init__(self) -> None:
+        # Entity isolation (v1.5.4): a journal and its chart must describe the
+        # same entity, so Entity A's journal can never post into Entity B's
+        # chart of accounts.
+        if self.chart is not None:
+            chart_entity = getattr(self.chart, "entity", None)
+            if chart_entity is not None and chart_entity != self.entity:
+                raise ValueError(
+                    f"entity mismatch: journal {self.entity!r} attached to a "
+                    f"chart for {chart_entity!r}"
+                )
 
     def post(self, entry: JournalEntry) -> None:
         if any(e.entry_id == entry.entry_id for e in self.entries):
