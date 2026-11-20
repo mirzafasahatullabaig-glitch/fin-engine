@@ -77,6 +77,8 @@ class JournalEntry:
     postings: tuple[Posting, ...]
     ref: str = ""      # external reference (invoice no., bank txn id, ...)
     status: EntryStatus = EntryStatus.POSTED  # default keeps pre-v1.5 behaviour
+    created_by: str = ""   # audit: who recorded it (v1.5.6); defaults to OS user
+    created_at: str = ""   # audit: when, ISO-8601 UTC; stamped if left blank
     formula_version: str = FORMULA_VERSION
 
     def __post_init__(self) -> None:
@@ -87,6 +89,19 @@ class JournalEntry:
             parse_date(self.date)
         except ValueError as e:
             raise ValueError(f"entry {self.entry_id!r}: {e}") from None
+        # Audit stamp (v1.5.6): fill who/when when not supplied, so every entry
+        # carries provenance. A reload passes the stored values, so they persist
+        # unchanged rather than being re-stamped.
+        if not self.created_at:
+            from datetime import datetime, timezone
+            object.__setattr__(self, "created_at",
+                               datetime.now(timezone.utc).isoformat(timespec="seconds"))
+        if not self.created_by:
+            import getpass
+            try:
+                object.__setattr__(self, "created_by", getpass.getuser())
+            except Exception:
+                object.__setattr__(self, "created_by", "unknown")
         if isinstance(self.postings, list):
             object.__setattr__(self, "postings", tuple(self.postings))
         if len(self.postings) < 2:

@@ -46,6 +46,8 @@ CREATE TABLE IF NOT EXISTS entries (
     description TEXT NOT NULL,
     ref TEXT NOT NULL DEFAULT '',
     status TEXT NOT NULL,
+    created_by TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT '',
     PRIMARY KEY (entity, entry_id)
 );
 CREATE TABLE IF NOT EXISTS postings (
@@ -72,7 +74,17 @@ class JournalStore:
         self._conn.execute("PRAGMA foreign_keys = ON")
         with self._conn:
             self._conn.executescript(_SCHEMA)
+            self._migrate()
         _log.info("journal store opened at %s", self.path)
+
+    def _migrate(self) -> None:
+        """Add audit columns to a pre-v1.5.6 entries table (idempotent)."""
+        cols = {r[1] for r in self._conn.execute(
+            "PRAGMA table_info(entries)").fetchall()}
+        for col in ("created_by", "created_at"):
+            if col not in cols:
+                self._conn.execute(
+                    f"ALTER TABLE entries ADD COLUMN {col} TEXT NOT NULL DEFAULT ''")
 
     def close(self) -> None:
         self._conn.close()
@@ -122,10 +134,12 @@ class JournalStore:
             with self._conn:  # atomic: entry + all postings, or nothing
                 self._conn.execute(
                     "INSERT INTO entries "
-                    "(entity, entry_id, date, description, ref, status) "
-                    "VALUES (?,?,?,?,?,?)",
+                    "(entity, entry_id, date, description, ref, status, "
+                    " created_by, created_at) "
+                    "VALUES (?,?,?,?,?,?,?,?)",
                     (entity, entry.entry_id, entry.date, entry.description,
-                     entry.ref, entry.status.value),
+                     entry.ref, entry.status.value,
+                     entry.created_by, entry.created_at),
                 )
                 for seq, p in enumerate(entry.postings):
                     self._conn.execute(
@@ -164,16 +178,19 @@ class JournalStore:
         chart = self.load_chart(entity)
         journal = Journal(entity, chart=chart if chart.accounts() else None)
         erows = self._conn.execute(
-            "SELECT entry_id, date, description, ref, status FROM entries "
-            "WHERE entity=? ORDER BY date, entry_id", (entity,)
+            "SELECT entry_id, date, description, ref, status, created_by, "
+            "created_at FROM entries WHERE entity=? ORDER BY date, entry_id",
+            (entity,)
         ).fetchall()
-        for entry_id, date, desc, ref, status in erows:
+        for entry_id, date, desc, ref, status, cby, cat in erows:
             prows = self._conn.execute(
                 "SELECT account, amount, description FROM postings "
                 "WHERE entity=? AND entry_id=? ORDER BY seq", (entity, entry_id)
             ).fetchall()
             postings = [Posting(acct, Decimal(amt), pdesc)
                         for acct, amt, pdesc in prows]
+            # Pass stored audit values so they persist unchanged across reloads.
             journal.post(JournalEntry(entry_id, date, desc, postings, ref=ref,
-                                      status=EntryStatus(status)))
+                                      status=EntryStatus(status),
+                                      created_by=cby, created_at=cat))
         return journal

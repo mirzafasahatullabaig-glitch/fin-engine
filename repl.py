@@ -50,6 +50,7 @@ Commands:
   pnl [period]             Show the P&L (default 2026-11)
   bs                       Show the balance sheet
   check                    Run reconciliation
+  history                  Audit trail: each entry with who recorded it and when
   health                   Check Ollama is up and the models are pulled
   seed                     Load a small sample company
   help                     This text
@@ -194,6 +195,12 @@ def _dispatch(cmd, rest, journal, chart, router, advisor, store):
                       "capital, current ratio, total assets, ...")
             else:
                 print(router.ask(rest).answer)
+        elif cmd == "history":
+            if not journal.entries:
+                print("  (no entries yet)")
+            for e in journal.entries:
+                print(f"  {e.entry_id:<6} {e.date}  {e.status.value:<8} "
+                      f"by {e.created_by} at {e.created_at}  — {e.description}")
         elif cmd == "health":
             h = health_check()
             print(f"  Ollama up: {h.ollama_up}")
